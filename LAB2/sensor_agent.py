@@ -1,49 +1,52 @@
-from __future__ import annotations
-
-import asyncio
 import json
-import logging
 import os
+import random
+import time
 from datetime import datetime
-
-from environment import Environment
 
 
 LOG_PATH = os.path.join(os.path.dirname(__file__), "events.log")
 
 
-class SensorAgent:
-    def __init__(self, env: Environment, interval: float = 2.0):
-        self.env = env
-        self.interval = interval
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-        self.logger = logging.getLogger("SensorAgent")
+def make_event(seed_rng):
+    types = ["earthquake", "flood", "fire", "storm", "landslide"]
+    places = ["Sector-A", "Sector-B", "Sector-C", "Sector-D", "Sector-E"]
+    severities = ["low", "medium", "high", "critical"]
 
-    async def run(self, cycles: int | None = None):
-        i = 0
-        self.logger.info("SensorAgent started")
-        while cycles is None or i < cycles:
-            events = self.env.step()
-            if events:
-                for e in events:
-                    self._record(e)
-                    self.logger.info(f"Detected event: {e['type']} {e['severity']} @ {e['location']}")
-            await asyncio.sleep(self.interval)
-            i += 1
-        self.logger.info("SensorAgent finished")
-
-    def _record(self, event: dict):
-        event_copy = dict(event)
-        event_copy["observed_at"] = datetime.utcfromtimestamp(event_copy["timestamp"]).isoformat() + "Z"
-        with open(LOG_PATH, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(event_copy) + "\n")
+    ev = {}
+    ev["time"] = int(time.time())
+    ev["type"] = seed_rng.choice(types)
+    ev["severity"] = seed_rng.choice(severities)
+    ev["place"] = seed_rng.choice(places)
+    ev["note"] = f"{ev['type'].title()} at {ev['place']} ({ev['severity']})"
+    return ev
 
 
-async def main():
-    env = Environment()
-    agent = SensorAgent(env, interval=1.0)
-    await agent.run(cycles=8)
+class SimpleAgent:
+    def __init__(self, seed=None, log_path=None):
+        self.rng = random.Random(seed)
+        self.log_path = log_path or LOG_PATH
+
+    def perceive_and_record(self, steps=5, delay=1.0):
+        with open(self.log_path, "a", encoding="utf-8") as fh:
+            for i in range(steps):
+                if self.rng.random() < 0.35:
+                    count = self.rng.randint(1, 2)
+                    for _ in range(count):
+                        ev = make_event(self.rng)
+                        ev["observed_at"] = datetime.utcfromtimestamp(ev["time"]).isoformat() + "Z"
+                        line = json.dumps(ev)
+                        fh.write(line + "\n")
+                        print("Agent saw:", ev["note"])
+                else:
+                    print("Agent saw nothing this step.")
+                time.sleep(delay)
+
+
+def main():
+    agent = SimpleAgent(seed=0)
+    agent.perceive_and_record(steps=8, delay=0.5)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
