@@ -1,7 +1,6 @@
 import logging
 import spade
 
-# Use INFO level for normal console output (reduces protocol-level noise)
 logging.basicConfig(level=logging.INFO)
 
 class BasicAgent(spade.agent.Agent):
